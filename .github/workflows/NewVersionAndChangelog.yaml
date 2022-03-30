@@ -1,0 +1,54 @@
+name: Update PSChristmasTree Module Version And Changelog
+
+on:
+  workflow_run:
+    workflows: ['Release PSChristmasTree Module on Github']
+    types:
+      - completed
+
+jobs:
+  NewVersionAndChanlog:
+    name: Update Module Version
+    runs-on: ubuntu-latest
+    env: 
+      CI_COMMIT_VERSION_MESSAGE: ":bookmark: Update module version"
+      CI_COMMIT_DOCS_MESSAGE: ":memo: Update module documentation"
+      CI_COMMIT_CHANGELOG_MESSAGE: ":loud_sound: Update CHANGELOG.md"
+      CI_COMMIT_AUTHOR: Continuous Integration
+      CI_COMMIT_EMAIL: ${{ secrets.CI_GITHUB_EMAIL }}
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      - name: Install InvokeBuild from PSGallery
+        shell: pwsh
+        run: |
+          Set-PSRepository PSGallery -InstallationPolicy Trusted
+          Install-Module InvokeBuild -Force   
+      - name: Build artifacts
+        shell: pwsh
+        run: |
+          Invoke-Build . -Configuration "Release" -Verbose
+      - name: Generate CHANGELOG
+        id: changelog
+        uses: ffurrer2/extract-release-notes@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          token: ${{ env.GITHUB_TOKEN }}
+          changelog_file: CHANGELOG.md
+      - name: Configurate GIT
+        run: |
+          git config --local user.name "${{ env.CI_COMMIT_AUTHOR }}"
+          git config --local user.email "${{ env.CI_COMMIT_EMAIL }}"
+      - name: Commit Version Module
+        run: |
+          git add PSChristmasTree/PSChristmasTree.psd1
+          git commit -m "${{ env.CI_COMMIT_VERSION_MESSAGE }}"
+      - name: Commit CHANGELOG
+        run: |
+          git add CHANGELOG.md
+          git commit -m "${{ env.CI_COMMIT_CHANGELOG_MESSAGE }}"
+      - name: Push changes
+        run: git push
