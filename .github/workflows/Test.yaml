@@ -1,0 +1,54 @@
+name: Run PSChristmasTree Tests
+on:
+  # Triggers the workflow on push or pull request events but only for the main branch
+  push:
+  pull_request:
+    branches: [ main ]
+    paths:
+        - 'PSChristmasTree/**'
+        - 'Tests/**'
+        
+jobs:
+  test:
+    name: Run Tests
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macOS-latest]
+        include:
+        - os: ubuntu-latest
+          path: ~/.local/share/powershell/Modules
+        - os: macos-latest
+          path: ~/.local/share/powershell/Modules
+        - os: windows-latest
+          path: ~\Documents\PowerShell\Modules\*
+    steps:
+        - name: Check out repository code
+          uses: actions/checkout@v3
+        - name: Setup PowerShell module cache
+          id: cacher
+          uses: actions/cache@v3
+          with:
+            path: ${{ matrix.path }}
+            key: ${{ runner.os }}-PSScriptAnalyzer-Pester
+            restore-keys: ${{ runner.os }}-PSScriptAnalyzer-Pester
+        - name: Install PSScriptAnalyzer and Pester from PSGallery
+          if: steps.cacher.outputs.cache-hit != 'true'
+          shell: pwsh
+          run: |
+            Set-PSRepository PSGallery -InstallationPolicy Trusted
+            Install-Module PSScriptAnalyzer, Pester -Force
+        - name: Perform a Pester test from the PSChristmasTree.Tests.ps1 file
+          shell: pwsh
+          run: |
+            Invoke-Pester Tests/PSChristmasTree.Tests.ps1 -Passthru
+        - name: Lint module folder with PSScriptAnalyzer
+          shell: pwsh
+          run: |
+            Invoke-ScriptAnalyzer -Path .\PSChristmasTree\ -Recurse -ErrorAction Stop -Outvariable issues
+            $errors   = $issues.Where({$_.Severity -eq 'Error'})
+            $warnings = $issues.Where({$_.Severity -eq 'Warning'})
+            if ($errors.Count -ne 0 -and $warnings.Count -ne 0) {
+                Write-Error "There were $($errors.Count) errors and $($warnings.Count) warnings total."
+            }
