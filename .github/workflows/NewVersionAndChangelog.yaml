@@ -1,0 +1,58 @@
+name: Update PSChristmasTree Module Version And Changelog
+
+on:
+  workflow_run:
+    workflows: ["Release PSChristmasTree Module on Github"]
+    types:
+      - completed
+
+jobs:
+  NewVersionAndChanlog:
+    name: Update Module Version
+    runs-on: ubuntu-latest
+    env: 
+      CI_COMMIT_VERSION_MESSAGE: ":bookmark: Update module version"
+      CI_COMMIT_CHANGELOG_MESSAGE: ":loud_sound: Update CHANGELOG.md"
+      CI_COMMIT_AUTHOR: Continuous Integration
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      - name: Setup PowerShell module cache
+        id: cacher
+        uses: actions/cache@v3
+        with:
+          path: "~/.local/share/powershell/Modules"
+          key: ${{ runner.os }}-PSInvokeBuild
+          restore-keys: ${{ runner.os }}-PSInvokeBuild
+      - name: Install InvokeBuild from PSGallery
+        if: steps.cacher.outputs.cache-hit != 'true'
+        shell: pwsh
+        run: |
+          Set-PSRepository PSGallery -InstallationPolicy Trusted
+          Install-Module InvokeBuild -Force   
+      - name: Build artifacts
+        shell: pwsh
+        run: |
+          Invoke-Build . -Configuration "Release" -Verbose
+      - name: Create release
+        uses: actions/setup-node@v3
+        with:
+          node-version: 16
+        run: npm install github-release-notes -g
+        run: gren changelog --override
+      - name: Commit Version Module
+        run: |
+          git config --global user.name "${{ env.CI_COMMIT_AUTHOR }}"
+          git config --global user.email "19627401+Sofiane-77@users.noreply.github.com"
+          git add PSChristmasTree/PSChristmasTree.psd1
+          git commit -m "${{ env.CI_COMMIT_VERSION_MESSAGE }}"
+          git push
+      - name: Commit CHANGELOG
+        run: |
+          git config --global user.name "${{ env.CI_COMMIT_AUTHOR }}"
+          git config --global user.email "19627401+Sofiane-77@users.noreply.github.com"
+          git add CHANGELOG.MD
+          git commit -m "${{ env.CI_COMMIT_CHANGELOG_MESSAGE }}"
+          git push
