@@ -1,0 +1,62 @@
+name: Update PSChristmasTree Module Version And Changelog
+
+on:
+  workflow_run:
+    workflows: ['Release PSChristmasTree Module on Github']
+    types:
+      - completed
+
+jobs:
+  NewVersionAndChanlog:
+    name: Update Module Version
+    runs-on: ubuntu-latest
+    env: 
+      CI_COMMIT_VERSION_MESSAGE: ":bookmark: Update module version"
+      CI_COMMIT_DOCS_MESSAGE: ":memo: Update module documentation"
+      CI_COMMIT_CHANGELOG_MESSAGE: ":loud_sound: Update CHANGELOG.md"
+      CI_COMMIT_AUTHOR: github-actions[bot]
+      CI_COMMIT_EMAIL: 41898282+github-actions[bot]@users.noreply.github.com
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      - name: Install InvokeBuild from PSGallery
+        shell: pwsh
+        run: |
+          Set-PSRepository PSGallery -InstallationPolicy Trusted
+          Install-Module InvokeBuild -Force
+      - name: Get last tag version
+        uses: rmeneely/git-last-tag@v1
+        with:
+          tag_pattern: 'v[0-9]+.[0-9]+.[0-9]+.[0-9]+'
+      - name: Use the value
+        id: step_two
+        run: |
+          echo "${{ env.LAST_TAG }}"
+      - name: Build artifacts
+        shell: pwsh
+        run: |
+          Invoke-Build . -Configuration "Release" -Verbose
+      - name: Generate CHANGELOG
+        id: changelog
+        uses: heinrichreimer/github-changelog-generator-action@v2.3
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          token: ${{ env.GITHUB_TOKEN }}
+          compare-link: false
+      - name: Configurate GIT
+        run: |
+          git config --local user.name "${{ env.CI_COMMIT_AUTHOR }}"
+          git config --local user.email "${{ env.CI_COMMIT_EMAIL }}"
+      - name: Commit Version Module
+        run: |
+          git add PSChristmasTree/PSChristmasTree.psd1
+          git commit -m "${{ env.CI_COMMIT_VERSION_MESSAGE }}"
+      - name: Commit CHANGELOG
+        run: |
+          git add CHANGELOG.md
+          git commit -m "${{ env.CI_COMMIT_CHANGELOG_MESSAGE }}"
+      - name: Push changes
+        run: git push
