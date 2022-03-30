@@ -1,0 +1,27 @@
+name: Publish PSChristmasTree Module on Powershell Gallery
+
+on:
+  workflow_run:
+    workflows: ['Release PSChristmasTree Module on Github']
+    types:
+      - completed
+
+jobs:
+  publish-to-gallery:
+    name: Publish on Powershell Gallery
+    runs-on: ubuntu-latest
+    steps:
+        - name: Check out repository code
+          uses: actions/checkout@v3
+        - name: Install InvokeBuild from PSGallery
+          shell: pwsh
+          run: |
+            Set-PSRepository PSGallery -InstallationPolicy Trusted
+            Install-Module InvokeBuild -Force   
+        - name: Build and publish
+          env:
+            NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
+          shell: pwsh
+          run: |
+            Invoke-Build . -Configuration "Release" -NuGetApiKey $env:NUGET_API_KEY -Verbose
+          
